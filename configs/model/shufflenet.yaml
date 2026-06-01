@@ -1,0 +1,16 @@
+_target_: src.models.shufflenet.ShuffleNetClassifier
+
+num_classes: ???
+# ShuffleNetV1 from scratch (thesis §10.3.3)
+groups: 3
+stage_channels: [24, 240, 480, 960]
+stage_repeats: [3, 7, 3]
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 1.0e-3
+
+scheduler: null
+
+trainer_overrides:
+  max_epochs: 20

@@ -1,0 +1,16 @@
+_target_: src.models.vgg19.VGG19Classifier
+
+num_classes: ???
+pretrained: true
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 1.0e-3
+
+scheduler:
+  _target_: torch.optim.lr_scheduler.StepLR
+  step_size: 20
+  gamma: 0.01  # corresponds to thesis 0.01/20 decay
+
+trainer_overrides:
+  max_epochs: 40

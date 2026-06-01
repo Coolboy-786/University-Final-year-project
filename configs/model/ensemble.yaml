@@ -1,0 +1,6 @@
+_target_: src.models.ensemble.AverageEnsemble
+
+# Paths to trained checkpoints; filled at eval time
+mobilenet_ckpt: ???
+shufflenet_ckpt: ???
+num_classes: ???

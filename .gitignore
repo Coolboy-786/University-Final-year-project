@@ -1,0 +1,60 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual envs
+.venv/
+venv/
+env/
+
+# Hydra outputs
+outputs/
+multirun/
+.hydra/
+
+# Weights & Biases
+wandb/
+
+# Data (large; use download scripts instead)
+data/raw/
+data/interim/
+data/processed/
+data/splits.csv
+*.hdf5
+*.h5
+*.zip
+*.tab
+
+# Keep per-source manifests — small, critical for reproducibility
+!data/raw/*/manifest.csv
+
+# Model checkpoints
+checkpoints/
+*.ckpt
+*.pt
+*.pth
+
+# Notebooks
+.ipynb_checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Mypy
+.mypy_cache/
+
+# Coverage
+.coverage
+htmlcov/
+
+# Generated class mapping (committed once stable, then locked)
+# src/data/class_mapping.json

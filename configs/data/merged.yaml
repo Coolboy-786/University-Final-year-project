@@ -1,0 +1,35 @@
+_target_: src.data.datamodule.SkinDiseaseDataModule
+
+# ---------------------------------------------------------------------------
+# Storage backend — set env var STORAGE_BACKEND=colab when using Google Drive
+# ---------------------------------------------------------------------------
+storage_backend: ${oc.env:STORAGE_BACKEND,local}
+
+storage:
+  local:
+    data_root: data
+    raw_root: data/raw
+    interim_root: data/interim
+    processed_root: data/processed
+    splits_path: data/splits.csv
+  colab:
+    data_root: /content/drive/MyDrive/FYP_Thesis (1)/data
+    raw_root: /content/drive/MyDrive/FYP_Thesis (1)/data/raw
+    interim_root: /content/drive/MyDrive/FYP_Thesis (1)/data/interim
+    processed_root: /content/drive/MyDrive/FYP_Thesis (1)/data/processed
+    splits_path: /content/drive/MyDrive/FYP_Thesis (1)/data/splits.csv
+
+# Active paths — resolved from storage profile above at runtime via src.utils.paths.get_data_root()
+data_root: data/processed
+class_mapping_path: src/data/class_mapping.json
+splits_path: data/splits.csv
+
+batch_size: 32
+num_workers: 4
+pin_memory: true
+image_size: 224
+
+# Threshold-based pruning (Section 6.3)
+min_instances: 100
+min_fraction: 0.005
+prune_rule: "either"  # drop class if it fails EITHER threshold

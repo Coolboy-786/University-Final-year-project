@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import cv2
 import numpy as np
 
 
@@ -31,4 +32,17 @@ def segment_adaptive(
     ValueError
         If ``block_size`` is even or the input is not a 3-channel uint8 image.
     """
-    raise NotImplementedError
+    if block_size % 2 == 0:
+        raise ValueError(f"block_size must be odd, got {block_size}")
+    if image.ndim != 3 or image.shape[2] != 3 or image.dtype != np.uint8:
+        raise ValueError("Expected HxWx3 uint8 RGB image")
+
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    mask = cv2.adaptiveThreshold(
+        gray, 255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        block_size,
+        c,
+    )
+    return np.where(mask[:, :, np.newaxis] > 0, image, 0).astype(np.uint8)

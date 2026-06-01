@@ -7,8 +7,8 @@ parameters — evaluation only.
 from __future__ import annotations
 
 from pathlib import Path
+from typing import cast
 
-import torch
 import torch.nn.functional as F
 from torch import Tensor
 
@@ -20,15 +20,15 @@ from src.models.shufflenet import ShuffleNetClassifier
 class AverageEnsemble(BaseClassifier):
     """Average ensemble over MobileNetV2 and ShuffleNet softmax outputs.
 
-    This module has no trainable parameters. Both constituent models are
-    loaded from checkpoints and frozen.
+    Both constituent models are loaded from checkpoints and fully frozen. The
+    module itself has no trainable parameters and is used for evaluation only.
 
     Parameters
     ----------
     mobilenet_ckpt : Path
-        Checkpoint path for the trained :class:`MobileNetV2Classifier`.
+        Path to the checkpoint for the trained :class:`MobileNetV2Classifier`.
     shufflenet_ckpt : Path
-        Checkpoint path for the trained :class:`ShuffleNetClassifier`.
+        Path to the checkpoint for the trained :class:`ShuffleNetClassifier`.
     num_classes : int
         Number of output classes (must match both checkpoints).
     """
@@ -40,10 +40,23 @@ class AverageEnsemble(BaseClassifier):
         num_classes: int,
     ) -> None:
         super().__init__(num_classes=num_classes)
-        raise NotImplementedError
+
+        self.mobilenet: MobileNetV2Classifier = cast(
+            MobileNetV2Classifier,
+            MobileNetV2Classifier.load_from_checkpoint(str(mobilenet_ckpt)),
+        )
+        self.shufflenet: ShuffleNetClassifier = cast(
+            ShuffleNetClassifier,
+            ShuffleNetClassifier.load_from_checkpoint(str(shufflenet_ckpt)),
+        )
+
+        for model in (self.mobilenet, self.shufflenet):
+            for param in model.parameters():
+                param.requires_grad = False
+            model.eval()
 
     def forward(self, x: Tensor) -> Tensor:
-        """Compute averaged softmax probabilities.
+        """Return element-wise average of both models' softmax probabilities.
 
         Parameters
         ----------
@@ -54,10 +67,12 @@ class AverageEnsemble(BaseClassifier):
         -------
         Tensor
             Averaged softmax probabilities, shape ``(N, num_classes)``.
-            These are probabilities, not logits.
+            Values are probabilities (sum to 1), not raw logits.
         """
-        raise NotImplementedError
+        p_mobile = F.softmax(self.mobilenet(x), dim=1)
+        p_shuffle = F.softmax(self.shufflenet(x), dim=1)
+        return (p_mobile + p_shuffle) * 0.5
 
-    def configure_optimizers(self) -> None:
+    def configure_optimizers(self) -> None:  # type: ignore[override]
         """Not applicable — ensemble has no trainable parameters."""
         return None

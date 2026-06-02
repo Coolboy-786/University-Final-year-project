@@ -30,7 +30,7 @@ def set_all_seeds(seed: int = GLOBAL_SEED) -> None:
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(seed)
     try:
-        torch.use_deterministic_algorithms(True)
+        torch.use_deterministic_algorithms(True, warn_only=True)
     except RuntimeError:
         pass  # a small number of ops lack deterministic implementations
     pl.seed_everything(seed, workers=True)

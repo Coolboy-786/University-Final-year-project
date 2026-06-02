@@ -24,7 +24,7 @@ python -m src.data.merge
 python -m src.training.train model=mobilenet preprocessing=none
 ```
 
-Data lands in `data/raw/`, `data/interim/`, and `data/processed/`.
+The data lands in `data/raw/`, `data/interim/`, and `data/processed/`.
 Checkpoints land in `data/checkpoints/`.
 
 ### Track B — Google Colab Setup

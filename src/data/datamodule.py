@@ -83,6 +83,9 @@ class SkinDiseaseDataModule(pl.LightningDataModule):
         image_size: int = 224,
         storage_backend: str = "local",
         storage: object = None,
+        min_instances: int = 100,
+        min_fraction: float = 0.005,
+        prune_rule: str = "either",
     ) -> None:
         super().__init__()
         root = get_data_root()

@@ -41,7 +41,7 @@ def _resolve_num_classes(cfg: DictConfig) -> int:
     if mapping_path.exists():
         with mapping_path.open(encoding="utf-8") as f:
             mapping = json.load(f)
-        n: int = mapping.get("n_classes") or len(mapping.get("classes", {}))
+        n: int = mapping.get("n_classes") or len(mapping.get("classes") or mapping)
         return n
     log.warning(
         "class_mapping.json not found at %s; defaulting num_classes=23. "

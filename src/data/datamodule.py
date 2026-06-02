@@ -89,7 +89,7 @@ class SkinDiseaseDataModule(pl.LightningDataModule):
     ) -> None:
         super().__init__()
         root = get_data_root()
-        self._data_root = Path(data_root) if data_root else root
+        self._data_root = root  # filepaths in manifest are relative to get_data_root()
         self.class_mapping_path = Path(class_mapping_path)
         self.splits_path = Path(splits_path) if splits_path else root / "splits.csv"
         self.batch_size = batch_size

@@ -1,13 +1,13 @@
-"""Average ensemble of MobileNetV2 and ShuffleNet (Section 7.6 / thesis §10.3.4).
+"""Average ensemble of MobileNetV2, ShuffleNet, and VGG19 (thesis §10.3.4).
 
-Averages the softmax outputs of the two trained models. No trainable
+Averages the softmax outputs of all three trained models. No trainable
 parameters — evaluation only.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import cast
+from typing import Optional, cast
 
 import torch.nn.functional as F
 from torch import Tensor
@@ -15,22 +15,26 @@ from torch import Tensor
 from src.models.base import BaseClassifier
 from src.models.mobilenet import MobileNetV2Classifier
 from src.models.shufflenet import ShuffleNetClassifier
+from src.models.vgg19 import VGG19Classifier
 
 
 class AverageEnsemble(BaseClassifier):
-    """Average ensemble over MobileNetV2 and ShuffleNet softmax outputs.
+    """Average ensemble over MobileNetV2, ShuffleNet, and VGG19 softmax outputs.
 
-    Both constituent models are loaded from checkpoints and fully frozen. The
+    All constituent models are loaded from checkpoints and fully frozen. The
     module itself has no trainable parameters and is used for evaluation only.
 
     Parameters
     ----------
     mobilenet_ckpt : Path
-        Path to the checkpoint for the trained :class:`MobileNetV2Classifier`.
+        Path to the trained :class:`MobileNetV2Classifier` checkpoint.
     shufflenet_ckpt : Path
-        Path to the checkpoint for the trained :class:`ShuffleNetClassifier`.
+        Path to the trained :class:`ShuffleNetClassifier` checkpoint.
+    vgg19_ckpt : Path or None
+        Path to the trained :class:`VGG19Classifier` checkpoint.
+        When None the ensemble falls back to MobileNet + ShuffleNet only.
     num_classes : int
-        Number of output classes (must match both checkpoints).
+        Number of output classes (must match all checkpoints).
     """
 
     def __init__(
@@ -38,6 +42,7 @@ class AverageEnsemble(BaseClassifier):
         mobilenet_ckpt: Path,
         shufflenet_ckpt: Path,
         num_classes: int,
+        vgg19_ckpt: Optional[Path] = None,
     ) -> None:
         super().__init__(num_classes=num_classes)
 
@@ -53,14 +58,25 @@ class AverageEnsemble(BaseClassifier):
                 str(shufflenet_ckpt), map_location="cpu", weights_only=False
             ),
         )
+        self.vgg19: Optional[VGG19Classifier] = None
+        if vgg19_ckpt is not None:
+            self.vgg19 = cast(
+                VGG19Classifier,
+                VGG19Classifier.load_from_checkpoint(
+                    str(vgg19_ckpt), map_location="cpu", weights_only=False
+                ),
+            )
 
-        for model in (self.mobilenet, self.shufflenet):
+        members = [self.mobilenet, self.shufflenet]
+        if self.vgg19 is not None:
+            members.append(self.vgg19)
+        for model in members:
             for param in model.parameters():
                 param.requires_grad = False
             model.eval()
 
     def forward(self, x: Tensor) -> Tensor:
-        """Return element-wise average of both models' softmax probabilities.
+        """Return element-wise average of all models' softmax probabilities.
 
         Parameters
         ----------
@@ -71,11 +87,15 @@ class AverageEnsemble(BaseClassifier):
         -------
         Tensor
             Averaged softmax probabilities, shape ``(N, num_classes)``.
-            Values are probabilities (sum to 1), not raw logits.
         """
-        p_mobile = F.softmax(self.mobilenet(x), dim=1)
-        p_shuffle = F.softmax(self.shufflenet(x), dim=1)
-        return (p_mobile + p_shuffle) * 0.5
+        probs = [
+            F.softmax(self.mobilenet(x), dim=1),
+            F.softmax(self.shufflenet(x), dim=1),
+        ]
+        if self.vgg19 is not None:
+            probs.append(F.softmax(self.vgg19(x), dim=1))
+        n = len(probs)
+        return sum(probs) / n  # type: ignore[return-value]
 
     def configure_optimizers(self) -> None:  # type: ignore[override]
         """Not applicable — ensemble has no trainable parameters."""

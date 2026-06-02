@@ -43,11 +43,15 @@ class AverageEnsemble(BaseClassifier):
 
         self.mobilenet: MobileNetV2Classifier = cast(
             MobileNetV2Classifier,
-            MobileNetV2Classifier.load_from_checkpoint(str(mobilenet_ckpt)),
+            MobileNetV2Classifier.load_from_checkpoint(
+                str(mobilenet_ckpt), map_location="cpu", weights_only=False
+            ),
         )
         self.shufflenet: ShuffleNetClassifier = cast(
             ShuffleNetClassifier,
-            ShuffleNetClassifier.load_from_checkpoint(str(shufflenet_ckpt)),
+            ShuffleNetClassifier.load_from_checkpoint(
+                str(shufflenet_ckpt), map_location="cpu", weights_only=False
+            ),
         )
 
         for model in (self.mobilenet, self.shufflenet):

@@ -87,7 +87,10 @@ def derive_ham_labels(df: pd.DataFrame) -> pd.DataFrame:
 
 def derive_isic_labels(df: pd.DataFrame) -> pd.DataFrame:
     """Map ISIC2018 ground-truth rows to ``(image_id, label)`` via the one-hot columns."""
-    image_col = next(c for c in df.columns if c.lower() == "image")
+    image_col = next(
+        (c for c in df.columns if c.lower() == "image"),
+        df.columns[0],  # fall back to first column (always the image-id column)
+    )
     labels = df.apply(one_hot_row_to_label, axis=1)
     return pd.DataFrame({"image_id": df[image_col].astype(str), "label": labels})
 

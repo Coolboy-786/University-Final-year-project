@@ -7,10 +7,14 @@ import logging
 from pathlib import Path
 from typing import Optional
 
+import numpy as np
 import pytorch_lightning as pl
 import torch
+from PIL import Image
 from torch.utils.data import DataLoader, Dataset
 
+from src.data.splits import load_splits
+from src.training.augment import get_eval_transforms, get_train_transforms
 from src.utils.paths import get_data_root
 
 logger = logging.getLogger(__name__)
@@ -21,24 +25,29 @@ class SkinDiseaseDataset(Dataset[tuple[torch.Tensor, int]]):
 
     Parameters
     ----------
-    manifest : list[tuple[str, int]]
-        List of ``(image_path, class_index)`` tuples.
+    items : list[tuple[str, int]]
+        List of ``(absolute_image_path, class_index)`` tuples.
     transform : callable or None
-        Albumentations or torchvision transform applied to each image.
+        Albumentations transform applied to each image.
     """
 
     def __init__(
         self,
-        manifest: list[tuple[str, int]],
+        items: list[tuple[str, int]],
         transform: Optional[object] = None,
     ) -> None:
-        raise NotImplementedError
+        self._items = items
+        self._transform = transform
 
     def __len__(self) -> int:
-        raise NotImplementedError
+        return len(self._items)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
-        raise NotImplementedError
+        path_str, label_idx = self._items[idx]
+        img = np.array(Image.open(path_str).convert("RGB"))
+        if self._transform is not None:
+            img = self._transform(image=img)["image"]
+        return img, label_idx
 
 
 class SkinDiseaseDataModule(pl.LightningDataModule):
@@ -47,11 +56,12 @@ class SkinDiseaseDataModule(pl.LightningDataModule):
     Parameters
     ----------
     data_root : str
-        Root of ``data/processed/``.
+        Base directory used to resolve relative filepaths stored in splits.csv.
+        Defaults to ``get_data_root()``.
     class_mapping_path : str
-        Path to ``src/data/class_mapping.json``.
+        Path to ``src/data/class_mapping.json`` (label → int index).
     splits_path : str
-        Path to ``data/splits.csv``.
+        Path to ``data/splits.csv`` produced by :func:`src.data.splits.make_splits`.
     batch_size : int
         DataLoader batch size.
     num_workers : int
@@ -71,12 +81,12 @@ class SkinDiseaseDataModule(pl.LightningDataModule):
         num_workers: int = 4,
         pin_memory: bool = True,
         image_size: int = 224,
-        storage_backend: str = "local",  # passed from Hydra config; get_data_root() reads env
-        storage: object = None,  # path profile map from config; resolution handled by paths.py
+        storage_backend: str = "local",
+        storage: object = None,
     ) -> None:
         super().__init__()
         root = get_data_root()
-        self.data_root = Path(data_root) if data_root else root / "processed"
+        self._data_root = Path(data_root) if data_root else root
         self.class_mapping_path = Path(class_mapping_path)
         self.splits_path = Path(splits_path) if splits_path else root / "splits.csv"
         self.batch_size = batch_size
@@ -84,18 +94,39 @@ class SkinDiseaseDataModule(pl.LightningDataModule):
         self.pin_memory = pin_memory
         self.image_size = image_size
         self._class_mapping: Optional[dict[str, int]] = None
+        self._train_dataset: Optional[SkinDiseaseDataset] = None
+        self._val_dataset: Optional[SkinDiseaseDataset] = None
+        self._test_dataset: Optional[SkinDiseaseDataset] = None
 
     @property
     def num_classes(self) -> int:
         """Number of classes determined from the class mapping file."""
-        raise NotImplementedError
+        if self._class_mapping is None:
+            mapping = json.loads(self.class_mapping_path.read_text())
+            self._class_mapping = mapping
+        return len(self._class_mapping)
 
     def prepare_data(self) -> None:
-        """Verify that splits and class mapping files exist.
+        """Verify splits and class mapping files exist (rank-0 only)."""
+        if not self.splits_path.exists():
+            raise FileNotFoundError(
+                f"Splits file missing: {self.splits_path}. "
+                "Run src.data.splits.make_splits() first."
+            )
+        if not self.class_mapping_path.exists():
+            self._build_class_mapping()
 
-        Called only on rank-0 in distributed training.
-        """
-        raise NotImplementedError
+    def _build_class_mapping(self) -> None:
+        """Derive label→index mapping from splits CSV and write class_mapping.json."""
+        splits_df = load_splits(self.splits_path)
+        labels = sorted(splits_df["label"].unique().tolist())
+        mapping = {label: idx for idx, label in enumerate(labels)}
+        self.class_mapping_path.parent.mkdir(parents=True, exist_ok=True)
+        self.class_mapping_path.write_text(json.dumps(mapping, indent=2))
+        logger.info(
+            "Wrote class mapping (%d classes) to %s", len(mapping), self.class_mapping_path
+        )
+        self._class_mapping = mapping
 
     def setup(self, stage: Optional[str] = None) -> None:
         """Instantiate train/val/test datasets.
@@ -105,16 +136,70 @@ class SkinDiseaseDataModule(pl.LightningDataModule):
         stage : str or None
             One of ``'fit'``, ``'validate'``, ``'test'``, or ``'predict'``.
         """
-        raise NotImplementedError
+        if self._class_mapping is None:
+            self._class_mapping = json.loads(self.class_mapping_path.read_text())
+
+        splits_df = load_splits(self.splits_path)
+
+        def _make_items(split_name: str) -> list[tuple[str, int]]:
+            rows = splits_df[splits_df["split"] == split_name]
+            items = []
+            for _, row in rows.iterrows():
+                abs_path = str(self._data_root / row["filepath"])
+                label_idx = self._class_mapping[row["label"]]
+                items.append((abs_path, label_idx))
+            return items
+
+        if stage in ("fit", None):
+            self._train_dataset = SkinDiseaseDataset(
+                _make_items("train"),
+                transform=get_train_transforms(self.image_size),
+            )
+            self._val_dataset = SkinDiseaseDataset(
+                _make_items("val"),
+                transform=get_eval_transforms(self.image_size),
+            )
+
+        if stage in ("validate", None):
+            if self._val_dataset is None:
+                self._val_dataset = SkinDiseaseDataset(
+                    _make_items("val"),
+                    transform=get_eval_transforms(self.image_size),
+                )
+
+        if stage in ("test", "predict", None):
+            self._test_dataset = SkinDiseaseDataset(
+                _make_items("test"),
+                transform=get_eval_transforms(self.image_size),
+            )
 
     def train_dataloader(self) -> DataLoader[tuple[torch.Tensor, int]]:
         """Return the training DataLoader with augmentation transforms."""
-        raise NotImplementedError
+        return DataLoader(
+            self._train_dataset,  # type: ignore[arg-type]
+            batch_size=self.batch_size,
+            shuffle=True,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+            drop_last=True,
+        )
 
     def val_dataloader(self) -> DataLoader[tuple[torch.Tensor, int]]:
         """Return the validation DataLoader with evaluation-only transforms."""
-        raise NotImplementedError
+        return DataLoader(
+            self._val_dataset,  # type: ignore[arg-type]
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+        )
 
     def test_dataloader(self) -> DataLoader[tuple[torch.Tensor, int]]:
         """Return the test DataLoader with evaluation-only transforms."""
-        raise NotImplementedError
+        return DataLoader(
+            self._test_dataset,  # type: ignore[arg-type]
+            batch_size=self.batch_size,
+            shuffle=False,
+            num_workers=self.num_workers,
+            pin_memory=self.pin_memory,
+        )

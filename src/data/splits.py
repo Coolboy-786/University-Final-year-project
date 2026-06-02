@@ -10,6 +10,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+from sklearn.model_selection import train_test_split
 
 from src.utils.paths import get_data_root
 
@@ -32,7 +33,7 @@ def make_splits(
     Parameters
     ----------
     manifest : pd.DataFrame
-        Must contain ``processed_path`` and ``class_name`` columns.
+        Must contain ``filepath`` and ``label`` columns.
     train_frac : float
         Fraction of data for training.
     val_frac : float
@@ -46,7 +47,36 @@ def make_splits(
         Input manifest with an added ``split`` column whose values are
         ``'train'``, ``'val'``, or ``'test'``.
     """
-    raise NotImplementedError
+    df = manifest.copy()
+
+    train_idx, tmp_idx = train_test_split(
+        df.index,
+        train_size=train_frac,
+        stratify=df["label"],
+        random_state=seed,
+    )
+
+    tmp_df = df.loc[tmp_idx]
+    val_of_tmp = val_frac / (1.0 - train_frac)
+    val_idx, test_idx = train_test_split(
+        tmp_df.index,
+        train_size=val_of_tmp,
+        stratify=tmp_df["label"],
+        random_state=seed,
+    )
+
+    df["split"] = ""
+    df.loc[train_idx, "split"] = "train"
+    df.loc[val_idx, "split"] = "val"
+    df.loc[test_idx, "split"] = "test"
+
+    logger.info(
+        "Split counts — train: %d  val: %d  test: %d",
+        len(train_idx),
+        len(val_idx),
+        len(test_idx),
+    )
+    return df
 
 
 def save_splits(splits_df: pd.DataFrame, output_path: Path) -> None:
@@ -59,7 +89,9 @@ def save_splits(splits_df: pd.DataFrame, output_path: Path) -> None:
     output_path : Path
         Destination path (e.g. ``data/splits.csv``).
     """
-    raise NotImplementedError
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    splits_df.to_csv(output_path, index=False)
+    logger.info("Splits written to %s", output_path)
 
 
 def load_splits(splits_path: Path) -> pd.DataFrame:
@@ -73,15 +105,19 @@ def load_splits(splits_path: Path) -> pd.DataFrame:
     Returns
     -------
     pd.DataFrame
-        DataFrame with at least ``processed_path``, ``class_name``, and
-        ``split`` columns.
+        DataFrame with at least ``filepath``, ``label``, and ``split`` columns.
 
     Raises
     ------
     FileNotFoundError
         If the splits file does not exist (run ``make_splits`` first).
     """
-    raise NotImplementedError
+    if not splits_path.exists():
+        raise FileNotFoundError(
+            f"Splits file not found: {splits_path}. "
+            "Generate it with make_splits() first."
+        )
+    return pd.read_csv(splits_path)
 
 
 def verify_no_leakage(splits_df: pd.DataFrame) -> None:
@@ -97,4 +133,9 @@ def verify_no_leakage(splits_df: pd.DataFrame) -> None:
     AssertionError
         If any path is found in multiple splits.
     """
-    raise NotImplementedError
+    counts = splits_df.groupby("filepath")["split"].nunique()
+    leakers = counts[counts > 1]
+    assert leakers.empty, (
+        f"{len(leakers)} filepath(s) appear in multiple splits: "
+        f"{leakers.index.tolist()[:5]}"
+    )

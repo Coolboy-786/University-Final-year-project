@@ -13,11 +13,11 @@ storage:
     processed_root: data/processed
     splits_path: data/splits.csv
   colab:
-    data_root: /content/drive/MyDrive/FYP_Thesis (1)/data
-    raw_root: /content/drive/MyDrive/FYP_Thesis (1)/data/raw
-    interim_root: /content/drive/MyDrive/FYP_Thesis (1)/data/interim
-    processed_root: /content/drive/MyDrive/FYP_Thesis (1)/data/processed
-    splits_path: /content/drive/MyDrive/FYP_Thesis (1)/data/splits.csv
+    data_root: /content/drive/MyDrive/FYP_Thesis/data
+    raw_root: /content/drive/MyDrive/FYP_Thesis/data/raw
+    interim_root: /content/drive/MyDrive/FYP_Thesis/data/interim
+    processed_root: /content/drive/MyDrive/FYP_Thesis/data/processed
+    splits_path: /content/drive/MyDrive/FYP_Thesis/data/splits.csv
 
 # Active paths — resolved from storage profile above at runtime via src.utils.paths.get_data_root()
 data_root: data/processed

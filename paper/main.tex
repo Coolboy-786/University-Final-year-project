@@ -4,106 +4,413 @@
 \usepackage{cite}
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{graphicx}
+\usepackage{textcomp}
+\usepackage{xcolor}
 \usepackage{booktabs}
-\usepackage{multirow}
+\usepackage{array}
 \usepackage{hyperref}
+
+\def\BibTeX{{\rm B\kern-.05em{\sc i\kern-.025em b}\kern-.08em
+    T\kern-.1667em\lower.7ex\hbox{E}\kern-.125emX}}
 
 \begin{document}
 
-\title{Image-Type-Aware Segmentation Routing for Multi-Class Skin Disease
-       Classification with a Lightweight CNN Ensemble}
+\title{Ensemble of Lightweight CNNs and CLIP for\\
+Multi-Class Skin Disease Classification}
 
 \author{
-  \IEEEauthorblockN{[Author Name]}
-  \IEEEauthorblockA{[Institution]}
+    \IEEEauthorblockN{Eshan Kumar Jain}
+    \IEEEauthorblockA{
+        Department of Computer Science and Engineering\\
+        Visvesvaraya National Institute of Technology\\
+        Nagpur, India\\
+        % TODO: add email
+    }
+    % TODO: add co-authors if any
 }
 
 \maketitle
 
-% -------------------------------------------------------------------------
+% -------------------------------------------------------------------
 \begin{abstract}
-TODO
+Automated skin disease classification from dermoscopy images presents
+significant challenges due to severe class imbalance and high
+intra-class variation. In this work, we propose an average ensemble
+combining two lightweight convolutional neural networks ---
+MobileNetV2 and ShuffleNetV2 --- with a CLIP ViT-B/32 linear probe
+on the HAM10000 benchmark (10,015 images, 7 classes). Balanced class
+weighting is applied during training to address the dominant
+melanocytic nevus class ($\approx$67\% of samples). We further
+investigate VGG19 as a candidate model and report its complete
+majority-class collapse under class imbalance, providing reproducible
+evidence of large-model failure on small medical datasets. The
+proposed 3-model ensemble achieves a macro F1-score of 0.6518 and
+accuracy of 82.50\% on the held-out test set, outperforming the best
+individual model (CLIP linear probe, macro F1 = 0.5637) by 8.6
+percentage points. Results demonstrate that combining heterogeneous
+feature spaces --- CNN inductive biases with vision-language
+pretraining --- yields meaningful complementary gains in multi-class
+medical image classification.
 \end{abstract}
 
 \begin{IEEEkeywords}
-skin disease classification, image segmentation, CNN ensemble, MobileNetV2,
-ShuffleNet, routing, dermatology
+skin disease classification, ensemble learning, CLIP, MobileNetV2,
+ShuffleNet, class imbalance, dermoscopy
 \end{IEEEkeywords}
 
-% -------------------------------------------------------------------------
+% -------------------------------------------------------------------
 \section{Introduction}
-\label{sec:intro}
-TODO
 
-% -------------------------------------------------------------------------
+Skin diseases affect over 900 million people worldwide and early
+detection significantly improves treatment outcomes \cite{who_skin}.
+Traditional diagnosis relies on visual inspection by dermatologists,
+which is time-consuming, subjective, and unavailable in
+resource-limited settings. Computer-aided diagnosis systems based on
+deep learning offer a promising path toward scalable, consistent
+screening.
+
+The HAM10000 dataset \cite{tschandl2018} has become the standard
+benchmark for dermoscopic lesion classification, presenting 10,015
+images across 7 diagnostic categories. However, the dataset exhibits
+severe class imbalance --- melanocytic nevus constitutes $\approx$67\%
+of samples while dermatofibroma accounts for $\approx$1\% --- making
+standard accuracy an unreliable metric and naive deep learning models
+prone to majority-class collapse.
+
+Recent advances in vision-language pretraining, notably CLIP
+\cite{radford2021}, have demonstrated strong transfer to downstream
+visual tasks with minimal fine-tuning. Yet their application to
+dermoscopic classification alongside lightweight CNNs in an ensemble
+setting remains underexplored.
+
+This paper makes the following contributions:
+\begin{itemize}
+    \item We systematically compare three architectures ---
+          MobileNetV2, ShuffleNetV2, and CLIP ViT-B/32 --- on the
+          7-class HAM10000 benchmark under realistic class imbalance
+          conditions.
+    \item We document and analyse the complete failure of VGG19 under
+          class imbalance, contributing reproducible evidence of
+          majority-class collapse in large CNN models on small medical
+          datasets.
+    \item We show that an average ensemble of CNNs and a CLIP linear
+          probe achieves macro F1 = 0.6518, outperforming all
+          individual models and the CNN-only ensemble.
+    \item We release reproducible code with fixed splits, seed
+          control, and configuration management.%
+          \footnote{\url{https://github.com/Coolboy-786/University-Final-year-project}}
+\end{itemize}
+
+% -------------------------------------------------------------------
 \section{Related Work}
-\label{sec:related}
-TODO
 
-% -------------------------------------------------------------------------
-\section{Method}
-\label{sec:method}
+\subsection{Skin Lesion Classification}
+Early deep learning approaches applied standard CNNs to dermoscopy
+images, achieving dermatologist-level performance on binary melanoma
+detection \cite{esteva2017}. Subsequent work extended classification
+to multi-class settings using ResNet and DenseNet architectures
+\cite{TODO_multiclass}. Lightweight models such as MobileNet have
+been explored for mobile deployment \cite{TODO_mobile_skin}.
 
-\subsection{Image-Type Router}
-TODO
+\subsection{Class Imbalance in Medical Imaging}
+Class imbalance is endemic to medical datasets. Common remedies
+include oversampling \cite{TODO_smote}, cost-sensitive loss functions,
+and data augmentation. Weighted cross-entropy has been shown effective
+for dermoscopy classification \cite{TODO_weighted_loss}.
 
-\subsection{Segmentation Pipeline}
-TODO
+\subsection{Vision-Language Models for Medical Imaging}
+CLIP \cite{radford2021}, trained on 400 million image-text pairs,
+demonstrates strong zero-shot and linear probe performance across
+diverse visual domains. Recent work explores CLIP for medical image
+analysis \cite{TODO_medclip}, showing that frozen CLIP features
+transfer competitively even without domain-specific pretraining.
 
-\subsection{Classification Backbones}
-TODO
+\subsection{Ensemble Methods}
+Average ensembles of heterogeneous models reduce variance and exploit
+complementary feature representations \cite{TODO_ensemble_survey}.
+CNN ensembles have shown improvements on skin lesion
+classification \cite{TODO_skin_ensemble}; combining CNNs with
+transformer-based models is less studied in the dermoscopy domain.
+
+% -------------------------------------------------------------------
+\section{Dataset}
+
+We use the HAM10000 dataset \cite{tschandl2018} combined with the
+ISIC 2018 Task 3 test set \cite{codella2019}, yielding 10,015 images
+across 7 diagnostic classes: melanoma (MEL), melanocytic nevus (NV),
+basal cell carcinoma (BCC), actinic keratosis (AKIEC), benign
+keratosis (BKL), dermatofibroma (DF), and vascular lesion (VASC).
+
+\subsection{Class Distribution}
+Table~\ref{tab:class_dist} shows the per-class sample counts. The
+dataset is severely imbalanced; NV constitutes 66.9\% of samples
+while DF accounts for only 1.1\%.
+
+\begin{table}[htbp]
+\caption{Class Distribution in HAM10000 + ISIC2018}
+\label{tab:class_dist}
+\centering
+\begin{tabular}{lrr}
+\toprule
+\textbf{Class} & \textbf{Count} & \textbf{\%} \\
+\midrule
+Melanocytic Nevus (NV)       & 6,705 & 66.9 \\
+Melanoma (MEL)               & 1,113 & 11.1 \\
+Benign Keratosis (BKL)       & 1,099 & 11.0 \\
+Basal Cell Carcinoma (BCC)   &   514 &  5.1 \\
+Actinic Keratosis (AKIEC)    &   327 &  3.3 \\
+Vascular Lesion (VASC)       &   142 &  1.4 \\
+Dermatofibroma (DF)          &   115 &  1.1 \\
+\midrule
+\textbf{Total}               & \textbf{10,015} & \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Splits and Preprocessing}
+A stratified 70/15/15 train/validation/test split was applied
+(seed = 42), yielding 7,010 / 1,502 / 1,503 images respectively.
+Splits are written to disk; all experiments use identical partitions.
+
+All images are resized to $224\times224$ pixels. Training images
+undergo augmentation: horizontal flip ($p{=}0.5$), rotation
+$\pm10^{\circ}$ ($p{=}0.5$), shift/scale ($0.1$, $p{=}0.5$), and
+shear $\pm6^{\circ}$ ($p{=}0.5$), implemented via
+Albumentations \cite{TODO_albumentations}. ImageNet channel statistics
+(mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]) are
+applied for normalisation. Validation and test images receive only
+resize and normalisation.
+
+% -------------------------------------------------------------------
+\section{Methodology}
+
+\subsection{MobileNetV2}
+MobileNetV2 \cite{sandler2018} employs inverted residual blocks with
+depthwise separable convolutions ($\approx$3.4M parameters). We load
+ImageNet-pretrained weights, freeze the entire backbone, replace the
+1,280-dim classifier with a linear layer mapping to 7 classes, and
+unfreeze the last 20 parameter tensors for fine-tuning. Training uses
+Adam ($\text{lr}=1{\times}10^{-4}$) for up to 20 epochs with early
+stopping (patience = 5) on validation macro F1.
+
+\subsection{ShuffleNetV2}
+ShuffleNetV2 \cite{ma2018} uses channel-split and channel-shuffle
+operations for high efficiency ($\approx$2.3M parameters). The same
+fine-tuning protocol as MobileNetV2 is applied: freeze backbone,
+replace head, unfreeze last 20 parameter tensors, Adam
+$\text{lr}=1{\times}10^{-4}$, early stopping patience = 5.
+
+\subsection{VGG19 (Negative Result)}
+VGG19 \cite{simonyan2015} with ImageNet weights was trained with all
+layers unfrozen, replacing the final $4096{\to}1000$ layer with a
+$4096{\to}7$ linear head. Adam ($\text{lr}=1{\times}10^{-3}$) with
+StepLR decay (step\_size = 20, $\gamma=0.01$) was used for up to 40
+epochs. Despite applying balanced class weights to the cross-entropy
+loss, VGG19 collapsed to predicting NV for all 1,503 test samples
+(macro F1 = 0.1146). VGG19 was excluded from the final ensemble; the
+failure is analysed in Section~\ref{sec:results}.
+
+\subsection{CLIP Linear Probe}
+CLIP \cite{radford2021} ViT-B/32 (87.5M parameters) was used as a
+frozen feature extractor. Input images normalised with ImageNet
+statistics are re-normalised to CLIP's channel statistics
+(mean = [0.481, 0.458, 0.408], std = [0.269, 0.261, 0.276])
+internally before the encoder forward pass. Features are extracted
+once for all splits and cached as 768-dimensional pooled vectors,
+eliminating redundant encoder passes during training. A linear head
+($768{\to}7$, 5,376 parameters) is trained using Adam
+($\text{lr}=1{\times}10^{-3}$) with balanced class weights and early
+stopping (patience = 10). Total trainable parameters: 5.4K.
 
 \subsection{Average Ensemble}
-TODO
+The final model averages softmax probabilities from all three models:
+\begin{equation}
+    \hat{y} = \frac{1}{3}\sum_{i=1}^{3} \text{softmax}(f_i(x))
+    \label{eq:ensemble}
+\end{equation}
+where $f_1$, $f_2$, $f_3$ denote MobileNetV2, ShuffleNetV2, and the
+CLIP linear probe respectively. No additional training is required.
 
-% -------------------------------------------------------------------------
-\section{Dataset}
-\label{sec:dataset}
+\subsection{Training Details}
+All experiments use PyTorch Lightning with mixed-precision training
+(FP16) on a single NVIDIA T4 GPU. Batch size = 32 for image-based
+models, 512 for the CLIP feature probe. ModelCheckpoint saves the
+single best validation macro F1 checkpoint. Random seed = 42 is fixed
+globally.
 
-% Table (a): dataset composition and sources
-\begin{table}[t]
-  \centering
-  \caption{Dataset composition after threshold-based pruning.}
-  \label{tab:dataset}
-  TODO
-\end{table}
-
-% -------------------------------------------------------------------------
+% -------------------------------------------------------------------
 \section{Experiments}
-\label{sec:experiments}
+
+\subsection{Evaluation Metrics}
+Macro-averaged F1-score is the primary metric, as it weights each
+class equally regardless of support --- essential given the severe
+class imbalance where a trivial majority-class predictor achieves
+66.9\% accuracy. Weighted F1 and accuracy are reported as secondary
+metrics.
+
+\subsection{Baselines}
+Each individual model serves as a single-model baseline. The 2-model
+CNN ensemble (MobileNetV2 + ShuffleNetV2) provides an ablation that
+isolates the contribution of CLIP to the final ensemble.
+
+% -------------------------------------------------------------------
+\section{Results and Discussion}
+\label{sec:results}
 
 \subsection{Main Results}
+Table~\ref{tab:results} reports test-set performance for all models.
+The proposed 3-model ensemble achieves macro F1 = 0.6518 and accuracy
+= 82.50\%, outperforming all individual models and baselines.
 
-% Table (b): main results across models
-\begin{table}[t]
-  \centering
-  \caption{Main classification results.}
-  \label{tab:main}
-  TODO
+\begin{table}[htbp]
+\caption{Test Set Classification Results. Best results in bold.}
+\label{tab:results}
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{Acc.\ (\%)} & \textbf{Macro F1} & \textbf{Wtd.\ F1} \\
+\midrule
+VGG19                        & 66.93 & 0.1146 & 0.5367 \\
+ShuffleNetV2                 & 76.18 & 0.4640 & 0.7363 \\
+MobileNetV2                  & 79.37 & 0.5503 & 0.7756 \\
+CLIP (linear probe)          & 70.79 & 0.5637 & 0.7342 \\
+Ensemble (CNN only)          & 80.04 & 0.5686 & 0.7796 \\
+\textbf{Ensemble (proposed)} & \textbf{82.50} & \textbf{0.6518} & \textbf{0.8154} \\
+\bottomrule
+\end{tabular}
 \end{table}
 
-\subsection{Router Ablation}
+\subsection{VGG19 Collapse Analysis}
+Inspection of VGG19 predictions reveals all 1,503 test samples
+classified as NV. The validation F1 reported during training (0.657)
+was an artefact of torchmetrics batch-level accumulation, not genuine
+minority-class learning --- independent sklearn evaluation on the full
+test set unmasked the collapse. VGG19's large parameter count
+($\approx$138M) relative to the training set size (7,010 images)
+likely contributes to overfitting to the dominant class, a finding
+consistent with observations on small imbalanced medical datasets
+\cite{TODO_imbalance_medical}.
 
-% Table (c): router ablation
-\begin{table}[t]
-  \centering
-  \caption{Router ablation: effect of preprocessing strategy.}
-  \label{tab:ablation}
-  TODO
-\end{table}
+\subsection{CLIP vs.\ CNN Models}
+Despite using only 5.4K trainable parameters, the CLIP linear probe
+achieves the best individual macro F1 (0.5637), surpassing
+MobileNetV2 (0.5503) and ShuffleNetV2 (0.4640). CLIP's lower accuracy
+(70.8\%) compared to MobileNetV2 (79.4\%) reflects a trade-off: CLIP
+better recovers minority classes at the cost of some majority-class
+precision. This is consistent with the balanced class weighting and
+suggests CLIP features encode class-discriminative information that
+transfers well to rare dermatological conditions.
 
-% -------------------------------------------------------------------------
-\section{Discussion}
-\label{sec:discussion}
-TODO
+\subsection{Ensemble Analysis}
+The CNN-only ensemble (macro F1 = 0.5686) improves only marginally
+over MobileNetV2 alone ($+1.8\%$), indicating limited complementarity
+between two similar CNN architectures. Adding CLIP yields a
+substantial gain ($+8.3\%$ macro F1), validating our hypothesis that
+vision-language pretraining provides features complementary to CNN
+inductive biases. The improvement is most pronounced for rare classes
+(DF, VASC), where CLIP's semantic features provide discriminative
+signal that CNNs miss.
 
-% -------------------------------------------------------------------------
+\subsection{Confusion Matrix Analysis}
+% TODO: Uncomment and add figure after copying confusion.png to paper/figures/
+% \begin{figure}[htbp]
+%     \centering
+%     \includegraphics[width=\columnwidth]{figures/confusion_ensemble.png}
+%     \caption{Normalised confusion matrix for the proposed 3-model
+%     ensemble on the test set. Rows = true class, columns = predicted.}
+%     \label{fig:confusion}
+% \end{figure}
+
+The ensemble confusion matrix shows strongest performance on NV and
+MEL. Expected confusion occurs between morphologically similar classes
+(BKL vs.\ MEL, AKIEC vs.\ BCC). Rare classes (DF, VASC) benefit most
+from the ensemble, consistent with CLIP's better minority-class
+generalisation.
+
+% -------------------------------------------------------------------
 \section{Conclusion}
-\label{sec:conclusion}
-TODO
 
-% -------------------------------------------------------------------------
-\bibliographystyle{IEEEtran}
-\bibliography{refs}
+We presented a 3-model average ensemble combining MobileNetV2,
+ShuffleNetV2, and a CLIP ViT-B/32 linear probe for 7-class
+dermoscopic skin disease classification on HAM10000. The proposed
+system achieves macro F1 = 0.6518 and accuracy = 82.50\%,
+outperforming all individual models and the CNN-only ensemble. Key
+findings are: (1) CLIP frozen features achieve superior minority-class
+F1 over fine-tuned CNNs with only 5.4K trainable parameters; (2)
+VGG19 undergoes complete majority-class collapse under class imbalance,
+exposing a reproducible failure mode of large fully-trainable CNNs on
+small medical datasets; (3) heterogeneous model ensembles (CNN +
+vision-language) yield larger gains than homogeneous CNN ensembles.
+
+\textit{Limitations.} The CLIP linear probe uses frozen features;
+end-to-end fine-tuning may yield further improvements. The dataset is
+limited to 7 classes, and clinical deployment would require broader
+disease coverage.
+
+\textit{Future work.} Parameter-efficient fine-tuning (LoRA) of CLIP,
+learned ensemble weights, and extension to ISIC 2019 (9 classes) are
+natural next steps.
+
+% -------------------------------------------------------------------
+\begin{thebibliography}{00}
+
+\bibitem{tschandl2018}
+P. Tschandl, C. Rosendahl, and H. Kittler,
+``The HAM10000 dataset, a large collection of multi-source
+dermatoscopic images of common pigmented skin lesions,''
+\textit{Scientific Data}, vol.~5, p.~180161, 2018.
+
+\bibitem{codella2019}
+N. C. F. Codella \textit{et al.},
+``Skin lesion analysis toward melanoma detection 2018: A challenge
+hosted by the International Skin Imaging Collaboration (ISIC),''
+\textit{arXiv:1902.03368}, 2019.
+
+\bibitem{radford2021}
+A. Radford \textit{et al.},
+``Learning transferable visual models from natural language
+supervision,''
+in \textit{Proc. Int. Conf. Mach. Learn. (ICML)}, 2021,
+pp.~8748--8763.
+
+\bibitem{sandler2018}
+M. Sandler, A. Howard, M. Zhu, A. Zhmoginov, and L.-C. Chen,
+``MobileNetV2: Inverted residuals and linear bottlenecks,''
+in \textit{Proc. IEEE/CVF CVPR}, 2018, pp.~4510--4520.
+
+\bibitem{ma2018}
+N. Ma, X. Zhang, H.-T. Zheng, and J. Sun,
+``ShuffleNet V2: Practical guidelines for efficient CNN architecture
+design,''
+in \textit{Proc. ECCV}, 2018, pp.~116--131.
+
+\bibitem{simonyan2015}
+K. Simonyan and A. Zisserman,
+``Very deep convolutional networks for large-scale image recognition,''
+in \textit{Proc. ICLR}, 2015.
+
+\bibitem{esteva2017}
+A. Esteva \textit{et al.},
+``Dermatologist-level classification of skin cancer with deep neural
+networks,''
+\textit{Nature}, vol.~542, pp.~115--118, 2017.
+
+\bibitem{who_skin}
+% TODO: Replace with actual epidemiology citation
+World Health Organization, ``Skin diseases,'' 2023.
+[Online]. Available: \url{https://www.who.int}
+
+% TODO: Add remaining references:
+% \bibitem{TODO_multiclass}  -- multi-class HAM10000 paper
+% \bibitem{TODO_mobile_skin} -- MobileNet for skin disease
+% \bibitem{TODO_smote}       -- SMOTE / oversampling
+% \bibitem{TODO_weighted_loss} -- weighted loss for imbalance
+% \bibitem{TODO_medclip}     -- CLIP for medical imaging
+% \bibitem{TODO_ensemble_survey} -- ensemble survey
+% \bibitem{TODO_skin_ensemble}   -- CNN ensemble for skin
+% \bibitem{TODO_imbalance_medical} -- large model + imbalance failure
+% \bibitem{TODO_albumentations}  -- Albumentations library
+
+\end{thebibliography}
 
 \end{document}

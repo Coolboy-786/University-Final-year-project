@@ -13,7 +13,10 @@ import argparse
 import logging
 from pathlib import Path
 
+import numpy as np
 import pytorch_lightning as pl
+import torch
+from sklearn.utils.class_weight import compute_class_weight
 
 from src.data.feature_datamodule import CLIPFeatureDataModule
 from src.models.clip_classifier import CLIPClassifier
@@ -42,12 +45,21 @@ def main() -> None:
         features_dir=args.features_dir,
         batch_size=args.batch_size,
     )
+    dm.setup("fit")
 
     model = CLIPClassifier(
         num_classes=args.num_classes,
         freeze_encoder=True,
         lr=args.lr,
     )
+
+    # Compute balanced class weights from cached training labels
+    train_labels = dm._train.tensors[1].numpy()  # type: ignore[union-attr]
+    weights = compute_class_weight(
+        "balanced", classes=np.arange(args.num_classes), y=train_labels
+    )
+    model.class_weights = torch.tensor(weights, dtype=torch.float)
+    print(f"class weights: {model.class_weights.numpy().round(3).tolist()}")
 
     trainer = pl.Trainer(
         max_epochs=args.max_epochs,

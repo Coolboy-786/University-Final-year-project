@@ -14,6 +14,7 @@ from typing import Any
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from torch import Tensor
 from transformers import CLIPVisionModel
 
@@ -68,6 +69,11 @@ class CLIPClassifier(BaseClassifier):
         self.head = nn.Linear(hidden_size, num_classes)
 
         # Buffers for ImageNet → CLIP re-normalisation (moved to device automatically)
+        # Uniform weights by default; overwritten before training for class balance
+        self.register_buffer(
+            "class_weights", torch.ones(num_classes, dtype=torch.float)
+        )
+
         self.register_buffer(
             "_im_mean", torch.tensor(_IMAGENET_MEAN).view(1, 3, 1, 1)
         )
@@ -80,6 +86,16 @@ class CLIPClassifier(BaseClassifier):
         self.register_buffer(
             "_cl_std", torch.tensor(_CLIP_STD).view(1, 3, 1, 1)
         )
+
+    def _shared_step(
+        self, batch: tuple[Tensor, Tensor]
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        """Cross-entropy with balanced class weighting."""
+        images, labels = batch
+        logits = self(images)
+        loss = F.cross_entropy(logits, labels, weight=self.class_weights)
+        preds = logits.argmax(dim=1)
+        return loss, preds, labels
 
     def _renormalize(self, x: Tensor) -> Tensor:
         """Convert ImageNet-normalised tensor to CLIP normalisation."""

@@ -8,7 +8,7 @@ for 40 epochs.
 
 from __future__ import annotations
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import torch
@@ -66,8 +66,10 @@ class VGG19Classifier(BaseClassifier):
         # Replace the 1000-class output layer with a task-specific head
         self.backbone.classifier[6] = nn.Linear(4096, num_classes)
 
-        # Placeholder; filled in on_fit_start from training-split label counts
-        self.register_buffer("class_weights", None)
+        # Uniform weights by default; overwritten in on_fit_start with balanced weights
+        self.register_buffer(
+            "class_weights", torch.ones(num_classes, dtype=torch.float)
+        )
 
     def on_fit_start(self) -> None:
         """Compute balanced class weights from the training split labels."""
@@ -84,11 +86,10 @@ class VGG19Classifier(BaseClassifier):
     def _shared_step(
         self, batch: tuple[Tensor, Tensor]
     ) -> tuple[Tensor, Tensor, Tensor]:
-        """Cross-entropy with optional balanced class weighting."""
+        """Cross-entropy with balanced class weighting."""
         images, labels = batch
         logits = self(images)
-        weight: Optional[Tensor] = getattr(self, "class_weights", None)
-        loss = F.cross_entropy(logits, labels, weight=weight)
+        loss = F.cross_entropy(logits, labels, weight=self.class_weights)
         preds = logits.argmax(dim=1)
         return loss, preds, labels
 

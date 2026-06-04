@@ -87,18 +87,23 @@ class CLIPClassifier(BaseClassifier):
         return (x - self._cl_mean) / self._cl_std  # type: ignore[operator]
 
     def forward(self, x: Tensor) -> Tensor:
-        """Compute class logits.
+        """Compute class logits from images or pre-cached features.
 
         Parameters
         ----------
         x : Tensor
-            ImageNet-normalised images, shape ``(N, 3, 224, 224)``.
+            Either ImageNet-normalised images ``(N, 3, 224, 224)`` or
+            pre-cached CLIP pooled features ``(N, hidden_size)``.
+            2-D input bypasses the encoder (used during linear-probe training
+            on cached features); 4-D input runs the full pipeline.
 
         Returns
         -------
         Tensor
             Logits, shape ``(N, num_classes)``.
         """
+        if x.dim() == 2:
+            return self.head(x)
         x = self._renormalize(x)
         outputs = self.encoder(pixel_values=x)
         pooled: Tensor = outputs.pooler_output  # (N, hidden_size)

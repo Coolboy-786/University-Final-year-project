@@ -1,0 +1,12 @@
+_target_: src.models.clip_classifier.CLIPClassifier
+
+num_classes: ???
+model_name: "openai/clip-vit-base-patch32"
+freeze_encoder: true
+
+optimizer:
+  _target_: torch.optim.Adam
+  lr: 1.0e-4
+
+trainer_overrides:
+  max_epochs: 20

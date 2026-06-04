@@ -32,6 +32,7 @@ import torch
 from src.data.datamodule import SkinDiseaseDataModule
 from src.evaluation.confusion import compute_confusion_matrix, plot_confusion_matrix
 from src.evaluation.metrics import compute_aggregate_metrics, compute_per_class_metrics
+from src.models.clip_classifier import CLIPClassifier
 from src.models.ensemble import AverageEnsemble
 from src.models.mobilenet import MobileNetV2Classifier
 from src.models.shufflenet import ShuffleNetClassifier
@@ -43,6 +44,7 @@ _CKPT_DIR = Path("/content/drive/MyDrive/FYP_Thesis/data/checkpoints")
 _DEFAULT_VGG19   = _CKPT_DIR / "best-epoch=00-val" / "f1=0.6570.ckpt"
 _DEFAULT_MOBILE  = _CKPT_DIR / "best-epoch=01-val" / "f1=0.5674.ckpt"
 _DEFAULT_SHUFFLE = _CKPT_DIR / "best-epoch=05-val" / "f1=0.5288.ckpt"
+_DEFAULT_CLIP    = _CKPT_DIR / "clip-best.ckpt"
 
 _OUTPUT_ROOT = Path("outputs/eval")
 
@@ -111,10 +113,14 @@ def main() -> None:
                         help="Path to MobileNetV2 checkpoint")
     parser.add_argument("--shuffle",     default=str(_DEFAULT_SHUFFLE),
                         help="Path to ShuffleNet checkpoint")
+    parser.add_argument("--clip",        default=str(_DEFAULT_CLIP),
+                        help="Path to CLIPClassifier checkpoint")
     parser.add_argument("--no-ensemble", action="store_true",
                         help="Skip ensemble evaluation")
-    parser.add_argument("--two-model", action="store_true",
-                        help="Run MobileNet+ShuffleNet ensemble only (no VGG19)")
+    parser.add_argument("--two-model",   action="store_true",
+                        help="Run MobileNet+ShuffleNet ensemble only (no VGG19/CLIP)")
+    parser.add_argument("--three-model", action="store_true",
+                        help="Run MobileNet+ShuffleNet+CLIP ensemble")
     parser.add_argument("--output-dir",  default=str(_OUTPUT_ROOT),
                         help="Root directory for evaluation outputs")
     args = parser.parse_args()
@@ -137,6 +143,7 @@ def main() -> None:
     vgg19_ckpt   = Path(args.vgg19)
     mobile_ckpt  = Path(args.mobile)
     shuffle_ckpt = Path(args.shuffle)
+    clip_ckpt    = Path(args.clip)
 
     results: dict[str, dict[str, float]] = {}
 
@@ -144,6 +151,7 @@ def main() -> None:
         ("vgg19",      VGG19Classifier,       vgg19_ckpt),
         ("mobilenet",  MobileNetV2Classifier, mobile_ckpt),
         ("shufflenet", ShuffleNetClassifier,  shuffle_ckpt),
+        ("clip",       CLIPClassifier,        clip_ckpt),
     ]:
         if not ckpt.exists():
             print(f"[{name}] checkpoint not found: {ckpt} — skipped")
@@ -154,7 +162,21 @@ def main() -> None:
         )
 
     if not args.no_ensemble:
-        if args.two_model:
+        if args.three_model:
+            missing = [p for p in (mobile_ckpt, shuffle_ckpt, clip_ckpt) if not p.exists()]
+            if missing:
+                print(f"3-model ensemble skipped — missing: {[str(p) for p in missing]}")
+            else:
+                ensemble = AverageEnsemble(
+                    mobilenet_ckpt=mobile_ckpt,
+                    shufflenet_ckpt=shuffle_ckpt,
+                    clip_ckpt=clip_ckpt,
+                    num_classes=len(class_names),
+                )
+                results["ensemble_3model"] = evaluate_model(
+                    "ensemble_3model", ensemble, test_loader, class_names, device, output_root
+                )
+        elif args.two_model:
             missing = [p for p in (mobile_ckpt, shuffle_ckpt) if not p.exists()]
             if missing:
                 print(f"2-model ensemble skipped — missing: {[str(p) for p in missing]}")

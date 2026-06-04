@@ -112,7 +112,9 @@ def main() -> None:
     parser.add_argument("--shuffle",     default=str(_DEFAULT_SHUFFLE),
                         help="Path to ShuffleNet checkpoint")
     parser.add_argument("--no-ensemble", action="store_true",
-                        help="Skip 3-model ensemble evaluation")
+                        help="Skip ensemble evaluation")
+    parser.add_argument("--two-model", action="store_true",
+                        help="Run MobileNet+ShuffleNet ensemble only (no VGG19)")
     parser.add_argument("--output-dir",  default=str(_OUTPUT_ROOT),
                         help="Root directory for evaluation outputs")
     args = parser.parse_args()
@@ -152,19 +154,34 @@ def main() -> None:
         )
 
     if not args.no_ensemble:
-        missing = [p for p in (vgg19_ckpt, mobile_ckpt, shuffle_ckpt) if not p.exists()]
-        if missing:
-            print(f"ensemble skipped — missing: {[str(p) for p in missing]}")
+        if args.two_model:
+            missing = [p for p in (mobile_ckpt, shuffle_ckpt) if not p.exists()]
+            if missing:
+                print(f"2-model ensemble skipped — missing: {[str(p) for p in missing]}")
+            else:
+                ensemble = AverageEnsemble(
+                    mobilenet_ckpt=mobile_ckpt,
+                    shufflenet_ckpt=shuffle_ckpt,
+                    vgg19_ckpt=None,
+                    num_classes=len(class_names),
+                )
+                results["ensemble_2model"] = evaluate_model(
+                    "ensemble_2model", ensemble, test_loader, class_names, device, output_root
+                )
         else:
-            ensemble = AverageEnsemble(
-                mobilenet_ckpt=mobile_ckpt,
-                shufflenet_ckpt=shuffle_ckpt,
-                vgg19_ckpt=vgg19_ckpt,
-                num_classes=len(class_names),
-            )
-            results["ensemble"] = evaluate_model(
-                "ensemble", ensemble, test_loader, class_names, device, output_root
-            )
+            missing = [p for p in (vgg19_ckpt, mobile_ckpt, shuffle_ckpt) if not p.exists()]
+            if missing:
+                print(f"ensemble skipped — missing: {[str(p) for p in missing]}")
+            else:
+                ensemble = AverageEnsemble(
+                    mobilenet_ckpt=mobile_ckpt,
+                    shufflenet_ckpt=shuffle_ckpt,
+                    vgg19_ckpt=vgg19_ckpt,
+                    num_classes=len(class_names),
+                )
+                results["ensemble"] = evaluate_model(
+                    "ensemble", ensemble, test_loader, class_names, device, output_root
+                )
 
     print("\n=== test-set summary ===")
     summary = pd.DataFrame(

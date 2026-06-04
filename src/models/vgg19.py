@@ -8,10 +8,13 @@ for 40 epochs.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Optional
 
+import numpy as np
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+from sklearn.utils.class_weight import compute_class_weight
 from torch import Tensor
 from torchvision.models import VGG19_Weights, vgg19
 
@@ -37,6 +40,10 @@ class VGG19Classifier(BaseClassifier):
         StepLR epoch interval (thesis §10.3.1 uses 20).
     gamma : float
         StepLR multiplicative decay factor (thesis §10.3.1 uses 0.01).
+    use_class_weights : bool
+        If ``True``, compute balanced class weights from the training split
+        at fit-start and use them in the cross-entropy loss. Addresses
+        HAM10000 class imbalance (melanocytic_nevus dominates at ~67%).
     """
 
     def __init__(
@@ -46,16 +53,44 @@ class VGG19Classifier(BaseClassifier):
         lr: float = 1e-3,
         step_size: int = 20,
         gamma: float = 0.01,
+        use_class_weights: bool = True,
     ) -> None:
         super().__init__(num_classes=num_classes, lr=lr)
         self.save_hyperparameters()
         self._step_size = step_size
         self._gamma = gamma
+        self.use_class_weights = use_class_weights
 
         weights = VGG19_Weights.IMAGENET1K_V1 if pretrained else None
         self.backbone = vgg19(weights=weights)
         # Replace the 1000-class output layer with a task-specific head
         self.backbone.classifier[6] = nn.Linear(4096, num_classes)
+
+        # Placeholder; filled in on_fit_start from training-split label counts
+        self.register_buffer("class_weights", None)
+
+    def on_fit_start(self) -> None:
+        """Compute balanced class weights from the training split labels."""
+        if not self.use_class_weights:
+            return
+        dm = getattr(self.trainer, "datamodule", None)
+        if dm is None or getattr(dm, "_train_dataset", None) is None:
+            return
+        labels = np.array([item[1] for item in dm._train_dataset._items])
+        classes = np.arange(self.num_classes)
+        w = compute_class_weight("balanced", classes=classes, y=labels)
+        self.class_weights = torch.tensor(w, dtype=torch.float, device=self.device)
+
+    def _shared_step(
+        self, batch: tuple[Tensor, Tensor]
+    ) -> tuple[Tensor, Tensor, Tensor]:
+        """Cross-entropy with optional balanced class weighting."""
+        images, labels = batch
+        logits = self(images)
+        weight: Optional[Tensor] = getattr(self, "class_weights", None)
+        loss = F.cross_entropy(logits, labels, weight=weight)
+        preds = logits.argmax(dim=1)
+        return loss, preds, labels
 
     def forward(self, x: Tensor) -> Tensor:
         """Compute class logits.

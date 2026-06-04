@@ -2,6 +2,7 @@ _target_: src.models.vgg19.VGG19Classifier
 
 num_classes: ???
 pretrained: true
+use_class_weights: true
 
 optimizer:
   _target_: torch.optim.Adam

@@ -70,6 +70,6 @@ def get_model_checkpoint(
         monitor=monitor,
         mode="max",
         save_top_k=1,
-        save_last=True,
+        save_last=False,
         verbose=True,
     )

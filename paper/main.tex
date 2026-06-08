@@ -312,14 +312,13 @@ inductive biases. The improvement is most pronounced for rare classes
 signal that CNNs miss.
 
 \subsection{Confusion Matrix Analysis}
-% TODO: Uncomment and add figure after copying confusion.png to paper/figures/
-% \begin{figure}[htbp]
-%     \centering
-%     \includegraphics[width=\columnwidth]{figures/confusion_ensemble.png}
-%     \caption{Normalised confusion matrix for the proposed 3-model
-%     ensemble on the test set. Rows = true class, columns = predicted.}
-%     \label{fig:confusion}
-% \end{figure}
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=\columnwidth]{figures/ensemble.png}
+    \caption{Normalised confusion matrix for the proposed 3-model
+    ensemble on the test set. Rows = true class, columns = predicted.}
+    \label{fig:confusion}
+\end{figure}
 
 The ensemble confusion matrix shows strongest performance on NV and
 MEL. Expected confusion occurs between morphologically similar classes

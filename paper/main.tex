@@ -109,27 +109,27 @@ Early deep learning approaches applied standard CNNs to dermoscopy
 images, achieving dermatologist-level performance on binary melanoma
 detection \cite{esteva2017}. Subsequent work extended classification
 to multi-class settings using ResNet and DenseNet architectures
-\cite{TODO_multiclass}. Lightweight models such as MobileNet have
-been explored for mobile deployment \cite{TODO_mobile_skin}.
+\cite{adegun2021}. Lightweight models such as MobileNet have
+been explored for mobile deployment \cite{howard2017mobilenets}.
 
 \subsection{Class Imbalance in Medical Imaging}
 Class imbalance is endemic to medical datasets. Common remedies
-include oversampling \cite{TODO_smote}, cost-sensitive loss functions,
+include oversampling \cite{chawla2002}, cost-sensitive loss functions,
 and data augmentation. Weighted cross-entropy has been shown effective
-for dermoscopy classification \cite{TODO_weighted_loss}.
+for dermoscopy classification \cite{buda2018}.
 
 \subsection{Vision-Language Models for Medical Imaging}
 CLIP \cite{radford2021}, trained on 400 million image-text pairs,
 demonstrates strong zero-shot and linear probe performance across
 diverse visual domains. Recent work explores CLIP for medical image
-analysis \cite{TODO_medclip}, showing that frozen CLIP features
+analysis \cite{wang2022medclip}, showing that frozen CLIP features
 transfer competitively even without domain-specific pretraining.
 
 \subsection{Ensemble Methods}
 Average ensembles of heterogeneous models reduce variance and exploit
-complementary feature representations \cite{TODO_ensemble_survey}.
+complementary feature representations \cite{sagi2018}.
 CNN ensembles have shown improvements on skin lesion
-classification \cite{TODO_skin_ensemble}; combining CNNs with
+classification \cite{harangi2018}; combining CNNs with
 transformer-based models is less studied in the dermoscopy domain.
 
 % -------------------------------------------------------------------
@@ -176,7 +176,7 @@ All images are resized to $224\times224$ pixels. Training images
 undergo augmentation: horizontal flip ($p{=}0.5$), rotation
 $\pm10^{\circ}$ ($p{=}0.5$), shift/scale ($0.1$, $p{=}0.5$), and
 shear $\pm6^{\circ}$ ($p{=}0.5$), implemented via
-Albumentations \cite{TODO_albumentations}. ImageNet channel statistics
+Albumentations \cite{buslaev2020}. ImageNet channel statistics
 (mean = [0.485, 0.456, 0.406], std = [0.229, 0.224, 0.225]) are
 applied for normalisation. Validation and test images receive only
 resize and normalisation.
@@ -289,7 +289,7 @@ test set unmasked the collapse. VGG19's large parameter count
 ($\approx$138M) relative to the training set size (7,010 images)
 likely contributes to overfitting to the dominant class, a finding
 consistent with observations on small imbalanced medical datasets
-\cite{TODO_imbalance_medical}.
+\cite{johnson2019}.
 
 \subsection{CLIP vs.\ CNN Models}
 Despite using only 5.4K trainable parameters, the CLIP linear probe
@@ -399,16 +399,57 @@ networks,''
 World Health Organization, ``Skin diseases,'' 2023.
 [Online]. Available: \url{https://www.who.int}
 
-% TODO: Add remaining references:
-% \bibitem{TODO_multiclass}  -- multi-class HAM10000 paper
-% \bibitem{TODO_mobile_skin} -- MobileNet for skin disease
-% \bibitem{TODO_smote}       -- SMOTE / oversampling
-% \bibitem{TODO_weighted_loss} -- weighted loss for imbalance
-% \bibitem{TODO_medclip}     -- CLIP for medical imaging
-% \bibitem{TODO_ensemble_survey} -- ensemble survey
-% \bibitem{TODO_skin_ensemble}   -- CNN ensemble for skin
-% \bibitem{TODO_imbalance_medical} -- large model + imbalance failure
-% \bibitem{TODO_albumentations}  -- Albumentations library
+\bibitem{adegun2021}
+A. A. Adegun and S. Viriri,
+``Deep learning techniques for skin lesion analysis and melanoma cancer
+detection: A survey of state-of-the-art,''
+\textit{Artificial Intelligence Review}, vol.~54, pp.~811--841, 2021.
+
+\bibitem{howard2017mobilenets}
+A. G. Howard \textit{et al.},
+``MobileNets: Efficient convolutional neural networks for mobile vision
+applications,''
+\textit{arXiv:1704.04861}, 2017.
+
+\bibitem{chawla2002}
+N. V. Chawla, K. W. Bowyer, L. O. Hall, and W. P. Kegelmeyer,
+``SMOTE: Synthetic minority over-sampling technique,''
+\textit{Journal of Artificial Intelligence Research}, vol.~16,
+pp.~321--357, 2002.
+
+\bibitem{buda2018}
+M. Buda, A. Maki, and M. A. Mazurowski,
+``A systematic study of the class imbalance problem in convolutional
+neural networks,''
+\textit{Neural Networks}, vol.~106, pp.~249--259, 2018.
+
+\bibitem{wang2022medclip}
+Z. Wang \textit{et al.},
+``MedCLIP: Contrastive learning from unpaired medical images and text,''
+in \textit{Proc. EMNLP}, 2022, pp.~3876--3887.
+
+\bibitem{sagi2018}
+O. Sagi and L. Rokach,
+``Ensemble learning: A survey,''
+\textit{WIREs Data Mining and Knowledge Discovery}, vol.~8, no.~4,
+e1249, 2018.
+
+\bibitem{harangi2018}
+B. Harangi,
+``Skin lesion classification with ensembles of deep convolutional neural
+networks,''
+\textit{Journal of Biomedical Informatics}, vol.~86, pp.~25--32, 2018.
+
+\bibitem{johnson2019}
+J. M. Johnson and T. M. Khoshgoftaar,
+``Survey on deep learning with class imbalance,''
+\textit{Journal of Big Data}, vol.~6, no.~1, p.~27, 2019.
+
+\bibitem{buslaev2020}
+A. Buslaev, V. I. Iglovikov, E. Khvedchenya, A. Parinov,
+M. Druzhinin, and A. A. Kalinin,
+``Albumentations: Fast and flexible image augmentations,''
+\textit{Information}, vol.~11, no.~2, p.~125, 2020.
 
 \end{thebibliography}
 
